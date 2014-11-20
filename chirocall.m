@@ -22,10 +22,15 @@ function varargout = chirocall(varargin)
 	% Global Constants
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
-	H.Dnum = 1;
-
+	global H
+	
+	H.Dnum = 'Dev1';
+	H.Fs = 500000;
 	H.SweepDuration = 500;
-
+	H.DefaultOutputPath = pwd;
+	H.DefaultOutputFile = ['ccdata_' date '.daq'];
+	H.OutputFile = fullfile(H.DefaultOutputPath, H.DefaultOutputFile);
+	
 	%---------------------------------------------
 	%---------------------------------------------
 	% Microphone information
@@ -52,33 +57,35 @@ function varargout = chirocall(varargin)
 	H.f = figure;
 	set(H.f, 'Position', figpos);
 	set(H.f, 'Name', 'ChiroCall');
+	set(H.f, 'ToolBar', 'none');
+	set(H.f, 'MenuBar', 'none');
 
 	% create monitor button
 	H.monitor = uicontrol('Style', 'togglebutton', ...
 									'String', 'monitor', ...
 									'Position', monitorbuttonpos, ...
-									'FontSize', 12);
-
+									'FontSize', 12, ...
+									'Callback', {@monitor_callback});
 	% create record button
 	H.record = uicontrol('Style', 'togglebutton', ...
 									'String', 'record', ...
 									'Position', recordbuttonpos, ...
-									'FontSize', 12); 
-
-	set(H.monitor, 'Callback', {@monitor_callback, H});
-	set(H.record, 'Callback', {@record_callback, H});
+									'FontSize', 12, ...
+									'Callback', {@record_callback});
 
 	if nargout
 		varargout{1} = H;
 	end
 end
 
-function monitor_callback(hObject, eventdata, H)
+function monitor_callback(hObject, eventdata)
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
 	% Need to do different things depending on state of button
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
+	global H
+	
 	currentState = read_ui_val(H.monitor);
 
 	%------------------------------------------------------------------------
@@ -90,7 +97,6 @@ function monitor_callback(hObject, eventdata, H)
 		update_ui_str(H.monitor, 'monitor ON');
 		set(H.monitor, 'FontAngle', 'italic', 'FontWeight', 'bold');
 		disable_ui(H.record);
-		guidata(hObject, H)
 
 		%-------------------------------------------------------------
 		% Start DAQ things
@@ -98,14 +104,12 @@ function monitor_callback(hObject, eventdata, H)
 		% Initialize the NI device
 		try
 			H.NI = ai_init('NI', H.Dnum);
-			guidata(hObject, H)
 		catch errMsg
 			disp('error initializing NI device')
 			init_status = 0;
 			update_ui_str(H.monitor, 'Monitor');
 			enable_ui(H.record);
 			set(H.monitor, 'FontAngle', 'normal');
-			guidata(hObject, H);
 			return
 		end
 
@@ -140,7 +144,7 @@ function monitor_callback(hObject, eventdata, H)
 		% set TriggerType to 'Manual' so that program starts acquisition
 		set(H.NI.ai, 'TriggerType', 'Manual');
 		% set input type to single ended
-		set(H.ai, 'InputType', 'SingleEnded');
+		set(H.NI.ai, 'InputType', 'SingleEnded');
 
 		%------------------------------------------------------------------------
 		% EVENT and CALLBACK PARAMETERS
@@ -148,8 +152,6 @@ function monitor_callback(hObject, eventdata, H)
 		% first, set the object to call the SamplesAcquiredFunction when
 		% BufferSize # of points are available
 		set(H.NI.ai, 'SamplesAcquiredFcnCount', ms2samples(H.SweepDuration, H.Fs));
-		% provide callback function
-		set(H.ai, 'SamplesAcquiredFcn', {@acquire_callback, H});
 	
 		%-------------------------------------------------------
 		% set logging mode
@@ -162,6 +164,7 @@ function monitor_callback(hObject, eventdata, H)
 		% set channel skew mode to Equisample
 		%-------------------------------------------------------
 		set(H.NI.ai, 'ChannelSkewMode', 'Equisample');
+		
 		%-------------------------------------------------------
 		% sample interval
 		%-------------------------------------------------------
@@ -180,40 +183,39 @@ function monitor_callback(hObject, eventdata, H)
 		
 		% time vector for stimulus plots
 		zeroacq = syn_null(H.SweepDuration, H.Fs, 0);
-		SweepPoints = length(zeroacq);
-		tvec_acq = 1000*dt*(0:(SweepPoints-1));
+		H.SweepPoints = length(zeroacq);
+		H.tvec_acq = 1000*dt*(0:(H.SweepPoints-1));
 		
 		%-------------------------------------------------------
 		% create arrays for plotting and plot them
 		%-------------------------------------------------------
 		% acq
-		AI0data = zeroacq;
-		AI1data = zeroacq;
+		H.AI0data = zeroacq;
+		H.AI1data = zeroacq;
 		
 		%----------------------------------------------------------------
 		% plot null data, save handles in H struct for time-domain plots
 		%----------------------------------------------------------------
 		% response
-		ai0plot = subplot(2,2,1);
-		plot(ai0plot, tvec_acq, AI0data, 'g');
-		set(ai0plot, 'XDataSource', 'tvec_acq', 'YDataSource', 'AI0data');
-		ai1plot = subplot(2,2,2);
-		plot(ai1plot, tvec_acq, Racq, 'r');
-		set(ai1plot, 'XDataSource', 'tvec_acq', 'YDataSource', 'AI1data');
+		H.ai0axes = subplot(2,2,1);
+		H.ai0plot = plot(H.ai0axes, H.tvec_acq, H.AI0data, 'g');
+		set(H.ai0plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI0data');
+		title('Channel 0');
+		H.ai1axes = subplot(2,2,2);
+		H.ai1plot = plot(H.ai1axes, H.tvec_acq, H.AI1data, 'r');
+		set(H.ai1plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI1data');
+		title('Channel 1');
 
 		%-------------------------------------------------------
 		% plot null data, save handles for frequency-domain plots
 		%-------------------------------------------------------
 
-		%-------------------------------------------------------
-		% update handles
-		%-------------------------------------------------------
-		guidata(hObject, H);
+		% provide callback function
+		set(H.NI.ai, 'SamplesAcquiredFcn', {@plot_data});
 
 		%START ACQUIRING
 		start(H.NI.ai);
 		trigger(H.NI.ai);
-		guidata(hObject, H);
 
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
@@ -221,9 +223,6 @@ function monitor_callback(hObject, eventdata, H)
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
 	else
-		update_ui_str(H.monitor, 'monitor');
-		set(H.monitor, 'FontAngle', 'normal', 'FontWeight', 'normal');
-		guidata(hObject, H);
 		%------------------------------------------------------------------------
 		%------------------------------------------------------------------------
 		% clean up
@@ -231,26 +230,35 @@ function monitor_callback(hObject, eventdata, H)
 		%------------------------------------------------------------------------
 		disp('...closing NI devices...');
 		% stop acquiring
-		stop(H.NI.ai);
+		try
+			stop(H.NI.ai);
+		catch errEvent
+			fprintf('problem stopping!\n\n\n')
+			disp(errEvent)
+			return
+		end
 		% get event log
 		% EventLog = showdaqevents(handles.iodev.NI.ai);
 
 		% delete and clear ai and ch0 object
 		delete(H.NI.ai);
 		clear H.NI.ai
-
+		% update UI
+		update_ui_str(H.monitor, 'monitor');
+		set(H.monitor, 'FontAngle', 'normal', 'FontWeight', 'normal');
 		enable_ui(H.record);
 	end
 	
 end
 
 
-function record_callback(hObject, eventdata, H)
+function record_callback(hObject, eventdata)
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
 	% Need to do different things depending on state of button
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
+	global H
 	currentState = read_ui_val(H.record);
 
 	%------------------------------------------------------------------------
@@ -259,19 +267,196 @@ function record_callback(hObject, eventdata, H)
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
 	if currentState == 1
-		update_ui_str(H.record, 'record ON');
-		set(H.record, 'FontAngle', 'italic', 'FontWeight', 'bold');
-		disable_ui(H.monitor);
-		guidata(hObject, H)
+		%-------------------------------------------------------------
+		% get file to which data will be saved
+		%-------------------------------------------------------------				
+		[fname, fpath] = uiputfile(H.OutputFile, 'Write Data to ...' );
+		if isequal(fname, 0) || isequal(fpath, 0)
+			disp('Cancelling record...')
+			update_ui_val(H.record, 0);
+			return
+		else
+			H.OutputFile = fullfile(fpath, fname);
+			disp(['Data will be written to ', H.OutputFile]);
+			% set up gui for record state
+			update_ui_str(H.record, 'record ON');
+			set(H.record, 'FontAngle', 'italic', 'FontWeight', 'bold');
+			disable_ui(H.monitor);
+		end
+		
+		%-------------------------------------------------------------
+		% Start DAQ things
+		%-------------------------------------------------------------
+		% Initialize the NI device
+		try
+			H.NI = ai_init('NI', H.Dnum);
+		catch errMsg
+			disp('error initializing NI device')
+			init_status = 0;
+			update_ui_str(H.monitor, 'Monitor');
+			enable_ui(H.record);
+			set(H.monitor, 'FontAngle', 'normal');
+			return
+		end
+
+		%------------------------------------------------------
+		% AI subsystem
+		%------------------------------------------------------
+		set(H.NI.ai, 'SampleRate', H.Fs);
+		ActualRate = get(H.NI.ai, 'SampleRate');
+		if H.Fs ~= ActualRate
+			warning('chirocall:NIDAQ', ...
+						'Requested ai Fs (%f) ~= ActualRate (%f)', H.Fs, ActualRate);
+		end
+		H.Fs = ActualRate;
+
+		%-----------------------------------------------------------------------
+		%-----------------------------------------------------------------------
+		% set input range
+		%-----------------------------------------------------------------------
+		%-----------------------------------------------------------------------
+		% range needs to be in [RangeMin RangeMax] format
+		aiaoRange = 5 * [-1 1];
+		% set analog input range (might be overkill to set 
+		% InputRange, SensorRange and UnitsRange, but is seems to work)
+		for n = 1:length(H.NI.ai.Channel)
+			H.NI.ai.Channel(n).InputRange = aiaoRange;
+			H.NI.ai.Channel(n).SensorRange = aiaoRange;
+			H.NI.ai.Channel(n).UnitsRange = aiaoRange;
+		end
+
+		% set SamplesPerTrigger to Inf for continous acquisition
+		set(H.NI.ai, 'SamplesPerTrigger', Inf);
+		% set TriggerType to 'Manual' so that program starts acquisition
+		set(H.NI.ai, 'TriggerType', 'Manual');
+		% set input type to single ended
+		set(H.NI.ai, 'InputType', 'SingleEnded');
+
+		%------------------------------------------------------------------------
+		% EVENT and CALLBACK PARAMETERS
+		%------------------------------------------------------------------------
+		% first, set the object to call the SamplesAcquiredFunction when
+		% BufferSize # of points are available
+		set(H.NI.ai, 'SamplesAcquiredFcnCount', ...
+									ms2samples(H.SweepDuration, H.Fs));
+	
+		%-------------------------------------------------------
+		% set logging mode
+		%	'Disk'	sets logging mode to a file on disk 
+		%							(specified by 'LogFileName)
+		%	'Memory'	sets logging mode to memory only
+		%	'Disk&Memory'	logs to file and memory
+		%-------------------------------------------------------
+		set(H.NI.ai, 'LoggingMode', 'Disk&Memory');
+		
+		%-------------------------------------------------------
+		% set log to disk mode
+		%	'Index'	appends an index number to the file
+		%	'Overwrite'	overwrites file
+		%-------------------------------------------------------		
+		set(H.NI.ai, 'LogToDiskMode', 'Index');
+		
+		%-------------------------------------------------------
+		% set logging file
+		%-------------------------------------------------------		
+		set(H.NI.ai, 'LogFileName', H.OutputFile);
+		
+		%-------------------------------------------------------
+		% set channel skew mode to Equisample
+		%-------------------------------------------------------
+		set(H.NI.ai, 'ChannelSkewMode', 'Equisample');
+		
+		%-------------------------------------------------------
+		% sample interval
+		%-------------------------------------------------------
+		dt = 1/H.Fs;
+
+		%-----------------------------------------------------------------------
+		% create null acq and time vectors for plots, set up plots
+		%-----------------------------------------------------------------------
+		% to speed up plotting, the vectors Lacq, Racq, tvec_acq, L/Rfft, fvec
+		% are pre-allocated and then those arrys are used as XDataSource and
+		% YDataSource for the respective plots
+		%-----------------------------------------------------------------------
+		%-----------------------------------------------------------------------
+		% create figure
+		figH = figure;
+		
+		% time vector for stimulus plots
+		zeroacq = syn_null(H.SweepDuration, H.Fs, 0);
+		H.SweepPoints = length(zeroacq);
+		H.tvec_acq = 1000*dt*(0:(H.SweepPoints-1));
+		
+		%-------------------------------------------------------
+		% create arrays for plotting and plot them
+		%-------------------------------------------------------
+		% acq
+		H.AI0data = zeroacq;
+		H.AI1data = zeroacq;
+		
+		%----------------------------------------------------------------
+		% plot null data, save handles in H struct for time-domain plots
+		%----------------------------------------------------------------
+		% response
+		H.ai0axes = subplot(2,2,1);
+		H.ai0plot = plot(H.ai0axes, H.tvec_acq, H.AI0data, 'g');
+		set(H.ai0plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI0data');
+		title('Channel 0');
+		H.ai1axes = subplot(2,2,2);
+		H.ai1plot = plot(H.ai1axes, H.tvec_acq, H.AI1data, 'r');
+		set(H.ai1plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI1data');
+		title('Channel 1')
+		
+		
+		%-------------------------------------------------------
+		% plot null data, save handles for frequency-domain plots
+		%-------------------------------------------------------
+
+		% provide callback function
+		set(H.NI.ai, 'SamplesAcquiredFcn', {@plot_data});
+
+		%START ACQUIRING
+		start(H.NI.ai);
+		trigger(H.NI.ai);
+		
+		
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
 	%***** stop record
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
 	else
+		% stop acquiring
+		disp('...closing NI devices...');
+		try
+			stop(H.NI.ai);
+		catch errEvent
+			fprintf('problem stopping!\n\n\n')
+			disp(errEvent)
+			return
+		end
+		% get event log
+		% EventLog = showdaqevents(handles.iodev.NI.ai);
+
+		% delete and clear ai and ch0 object
+		delete(H.NI.ai);
+		clear H.NI.ai
+
+		% update UI
 		update_ui_str(H.record, 'record');
 		set(H.record, 'FontAngle', 'normal', 'FontWeight', 'normal');
 		enable_ui(H.monitor);
-		guidata(hObject, H);
 	end
+end
+
+function plot_data(obj, event)
+	global H
+	
+	% read data from ai object
+	tmpdata = getdata(obj, H.SweepPoints);
+	H.AI0data = tmpdata(:, 1);
+	H.AI1data = tmpdata(:, 2);
+	% update data plot
+	refreshdata(H.ai0plot, 'caller');
+	refreshdata(H.ai1plot, 'caller');
 end
