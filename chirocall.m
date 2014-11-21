@@ -24,6 +24,7 @@ function varargout = chirocall(varargin)
 	%------------------------------------------------------------------------
 	global H
 	
+	H.Nchannels = 1;
 	H.Dnum = 'Dev1';
 	H.Fs = 500000;
 	H.SweepDuration = 500;
@@ -103,7 +104,7 @@ function monitor_callback(hObject, eventdata)
 		%-------------------------------------------------------------
 		% Initialize the NI device
 		try
-			H.NI = ai_init('NI', H.Dnum);
+			H.NI = ai_init('NI', H.Dnum, H.Nchannels);
 		catch errMsg
 			disp('error initializing NI device')
 			init_status = 0;
@@ -191,20 +192,24 @@ function monitor_callback(hObject, eventdata)
 		%-------------------------------------------------------
 		% acq
 		H.AI0data = zeroacq;
-		H.AI1data = zeroacq;
+		if H.Nchannels == 2
+			H.AI1data = zeroacq;
+		end
 		
 		%----------------------------------------------------------------
 		% plot null data, save handles in H struct for time-domain plots
 		%----------------------------------------------------------------
 		% response
-		H.ai0axes = subplot(2,2,1);
+		H.ai0axes = subplot(1, H.Nchannels, 1);
 		H.ai0plot = plot(H.ai0axes, H.tvec_acq, H.AI0data, 'g');
 		set(H.ai0plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI0data');
 		title('Channel 0');
-		H.ai1axes = subplot(2,2,2);
-		H.ai1plot = plot(H.ai1axes, H.tvec_acq, H.AI1data, 'r');
-		set(H.ai1plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI1data');
-		title('Channel 1');
+		if H.Nchannels == 2
+			H.ai1axes = subplot(1, H.Nchannels, 2);
+			H.ai1plot = plot(H.ai1axes, H.tvec_acq, H.AI1data, 'r');
+			set(H.ai1plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI1data');
+			title('Channel 1');
+		end
 
 		%-------------------------------------------------------
 		% plot null data, save handles for frequency-domain plots
@@ -289,7 +294,7 @@ function record_callback(hObject, eventdata)
 		%-------------------------------------------------------------
 		% Initialize the NI device
 		try
-			H.NI = ai_init('NI', H.Dnum);
+			H.NI = ai_init('NI', H.Dnum, H.Nchannels);
 		catch errMsg
 			disp('error initializing NI device')
 			init_status = 0;
@@ -392,21 +397,24 @@ function record_callback(hObject, eventdata)
 		%-------------------------------------------------------
 		% acq
 		H.AI0data = zeroacq;
-		H.AI1data = zeroacq;
+		if H.Nchannels == 2
+			H.AI1data = zeroacq;
+		end
 		
 		%----------------------------------------------------------------
 		% plot null data, save handles in H struct for time-domain plots
 		%----------------------------------------------------------------
 		% response
-		H.ai0axes = subplot(2,2,1);
+		H.ai0axes = subplot(1, H.Nchannels, 1);
 		H.ai0plot = plot(H.ai0axes, H.tvec_acq, H.AI0data, 'g');
 		set(H.ai0plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI0data');
 		title('Channel 0');
-		H.ai1axes = subplot(2,2,2);
-		H.ai1plot = plot(H.ai1axes, H.tvec_acq, H.AI1data, 'r');
-		set(H.ai1plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI1data');
-		title('Channel 1')
-		
+		if H.Nchannels == 2
+			H.ai1axes = subplot(1, H.Nchannels, 2);
+			H.ai1plot = plot(H.ai1axes, H.tvec_acq, H.AI1data, 'r');
+			set(H.ai1plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI1data');
+			title('Channel 1');
+		end
 		
 		%-------------------------------------------------------
 		% plot null data, save handles for frequency-domain plots
@@ -455,8 +463,11 @@ function plot_data(obj, event)
 	% read data from ai object
 	tmpdata = getdata(obj, H.SweepPoints);
 	H.AI0data = tmpdata(:, 1);
-	H.AI1data = tmpdata(:, 2);
 	% update data plot
 	refreshdata(H.ai0plot, 'caller');
-	refreshdata(H.ai1plot, 'caller');
+	% do same for channel 2 if necessary
+	if H.Nchannels == 2
+		H.AI1data = tmpdata(:, 2);
+		refreshdata(H.ai1plot, 'caller');
+	end
 end

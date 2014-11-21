@@ -1,4 +1,4 @@
-function NI = ai_init(iface, Dnum)
+function NI = ai_init(iface, Dnum, Nchannels)
 %--------------------------------------------------------------------------
 % NI = ai_init.m
 %--------------------------------------------------------------------------
@@ -10,6 +10,7 @@ function NI = ai_init(iface, Dnum)
 % Input Arguments:
 % 	iface		must be 'NI'
 %	Dnum		device id (usually 'Dev1')
+%	Nchannels	# of channels to initialize (usually 1 or 2)
 % 
 % Output Arguments:
 % 	NI		struct containing settings for requested type
@@ -58,13 +59,15 @@ catch errEvent
 	return
 end
 
-% create AI channel
+% create AI channels
 fprintf('creating analog input channel objects...')
-chI = addchannel(ai, [0 1]);
-fprintf('...done\n');
-
-ai.Channel(1).ChannelName = 'AI0';
-ai.Channel(2).ChannelName = 'AI1';
+channelList = (1:Nchannels) - 1;
+chI = addchannel(ai, channelList);
+fprintf('... %d channels created\n', Nchannels);
+% assign names to channels
+for n = 1:Nchannels
+	ai.Channel(1).ChannelName = sprintf('AI%d', n - 1);
+end
 
 %-------------------------------------------------------
 % save in NI struct
