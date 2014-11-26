@@ -24,9 +24,20 @@ function varargout = chirocall(varargin)
 	%------------------------------------------------------------------------
 	global H
 	
+	%------------------------------------------------------------------
+	% to record from 1 channel (AI1), set H.Nchannels to 1
+	% to record from 2 channels (AI1 and AI2), set H.Nchannels to 2
+	%------------------------------------------------------------------
 	H.Nchannels = 1;
 	H.Dnum = 'Dev1';
+	%------------------------------------------------------------------
+	% H.Fs is the sample rate in units of samples per second
+	%------------------------------------------------------------------
 	H.Fs = 500000;
+	%------------------------------------------------------------------
+	% SweepDuration is the duration to display in the ongoing 
+	% data display window.
+	%------------------------------------------------------------------
 	H.SweepDuration = 500;
 	H.DefaultOutputPath = pwd;
 	H.DefaultOutputFile = ['ccdata_' date '.daq'];
