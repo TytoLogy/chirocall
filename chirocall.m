@@ -24,7 +24,7 @@ function varargout = chirocall(varargin)
 	%------------------------------------------------------------------------
 	global H
 	
-	H.Nchannels = 2;
+	H.Nchannels = 1;
 	H.Dnum = 'Dev1';
 	H.Fs = 500000;
 	H.SweepDuration = 500;
