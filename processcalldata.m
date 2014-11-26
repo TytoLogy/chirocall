@@ -191,7 +191,7 @@ end
 %------------------------------------------------------------
 % store info in .mat file
 %------------------------------------------------------------
-matfile = fullfile(outbase, [outbase '_info.mat']);
+matfile = fullfile(outpath, [outbase '_info.mat']);
 save(matfile, 'info', '-MAT');
 
 %------------------------------------------------------------
