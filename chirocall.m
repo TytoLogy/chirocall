@@ -408,12 +408,12 @@ function record_callback(hObject, eventdata)
 		H.ai0axes = subplot(1, H.Nchannels, 1);
 		H.ai0plot = plot(H.ai0axes, H.tvec_acq, H.AI0data, 'g');
 		set(H.ai0plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI0data');
-		title('Channel 0');
+		title('Channel AI0');
 		if H.Nchannels == 2
 			H.ai1axes = subplot(1, H.Nchannels, 2);
 			H.ai1plot = plot(H.ai1axes, H.tvec_acq, H.AI1data, 'r');
 			set(H.ai1plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI1data');
-			title('Channel 1');
+			title('Channel AI1');
 		end
 		
 		%-------------------------------------------------------
