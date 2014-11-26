@@ -85,6 +85,7 @@ end
 fprintf('\n\n');
 fprintf('%s\n', sepstr);
 fprintf('File %s has:\n', fname);
+fprintf('\t%d channels of data.\n', max(size(info.ObjInfo.Channel)));
 fprintf('\t%d samples (%f seconds) of data.\n', npts, net_time);
 fprintf('\tsample rate = %f samples/sec\n', Fs);
 fprintf('%s\n', sepstr);
@@ -154,9 +155,27 @@ for n = 1:nchunks
 	outname = sprintf('%s_%d.wav', outbase, n);
 	outfile = fullfile(outpath, outname);
 	fprintf('\tWriting Chunk to file %s ...', outfile);
+	%------------------------------------------------------------
 	% first normalize data to +/- 0.95 V max to avoid clipping
-	data = 0.95 * normalize(data);
-	% then write to wave file
+	%------------------------------------------------------------
+	% ensure data are organized with channels in rows
+	[nrows, ncols] = size(data);
+	if ncols > nrows
+		% if # of columns > # of rows, transpose the data so that
+		% samples are in rows, channels are in columns
+		data = data';
+	end
+	clear ncols nrows
+	
+	% normalize data by channel
+	[nsamples, nchannels] = size(data);
+	for c = 1:nchannels
+		data(:, c) = 0.95 * normalize(data(:, c));
+	end
+		
+	%------------------------------------------------------------
+	% then write to wave file (use try... catch to trap errors)
+	%------------------------------------------------------------
 	try
 		wavwrite(data, Fs, outfile);
 	catch errEvent
@@ -164,10 +183,20 @@ for n = 1:nchunks
 		disp(errEvent)
 		return
 	end
+	
+	% done!
 	fprintf('... done\n');
 end
 
+%------------------------------------------------------------
+% store info in .mat file
+%------------------------------------------------------------
+matfile = fullfile(outbase, [outbase '_info.mat']);
+save(matfile, 'info', '-MAT');
+
+%------------------------------------------------------------
 % outputs
+%------------------------------------------------------------
 if nargout > 0
 	varargout{1} = time_chunks;
 end
