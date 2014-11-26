@@ -1,4 +1,4 @@
-%readcall
+function varargout = processcalldata
 %------------------------------------------------------------------------
 % readcall.m
 %------------------------------------------------------------------------
@@ -142,7 +142,7 @@ end
 fprintf('%s\n\n', sepstr);
 
 %-------------------------------------------------------------
-%% read in chunks of data, write to wav files
+% read in chunks of data, write to wav files
 %-------------------------------------------------------------
 fprintf('%s\n', sepstr)
 fprintf('Reading and Converting data to .wav format...\n')
@@ -165,5 +165,13 @@ for n = 1:nchunks
 		return
 	end
 	fprintf('... done\n');
+end
+
+% outputs
+if nargout > 0
+	varargout{1} = time_chunks;
+end
+if nargout > 1
+	varargout{2} = info;
 end
 
