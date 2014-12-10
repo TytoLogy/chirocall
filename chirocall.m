@@ -245,21 +245,15 @@ function monitor_callback(hObject, eventdata)
 		% clean up
 		%------------------------------------------------------------------------
 		%------------------------------------------------------------------------
-		disp('...closing NI devices...');
-		% stop acquiring
-		try
-			stop(H.NI.ai);
-		catch errEvent
-			fprintf('problem stopping!\n\n\n')
-			disp(errEvent)
-			return
+		[status, log] = ai_stop(H.NI);
+		
+		if status
+			disp status
+			disp log
 		end
-		% get event log
-		% EventLog = showdaqevents(handles.iodev.NI.ai);
-
-		% delete and clear ai and ch0 object
-		delete(H.NI.ai);
-		clear H.NI.ai
+		
+		clear H.NI;
+		
 		% update UI
 		update_ui_str(H.monitor, 'monitor');
 		set(H.monitor, 'FontAngle', 'normal', 'FontWeight', 'normal');
