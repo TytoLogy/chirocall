@@ -11,7 +11,7 @@ function NI = ai_init(iface, Dnum, Nchannels)
 % 	iface		must be 'NI'
 %	Dnum		device id (usually 'Dev1')
 %	Nchannels	# of channels to initialize (usually 1 or 2)
-% 
+%
 % Output Arguments:
 % 	NI		struct containing settings for requested type
 % 		NI.ai		analog input object
@@ -51,6 +51,7 @@ end
 %------------------------------------------------------------------------
 fprintf('Initializing NIDAQ device for analog input...')
 try
+	% create analog input object
 	ai = analoginput('nidaq', Dnum);
 	fprintf('...done\n')
 catch errEvent

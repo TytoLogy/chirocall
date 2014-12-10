@@ -22,7 +22,7 @@ function varargout = chirocall(varargin)
 	% Global Constants
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
-	global H
+	global H sopt
 	
 	%------------------------------------------------------------------
 	% to record from 1 channel (AI1), set H.Nchannels to 1
@@ -30,16 +30,41 @@ function varargout = chirocall(varargin)
 	%------------------------------------------------------------------
 	H.Nchannels = 1;
 	H.Dnum = 'Dev1';
+	
+	% input mode -> 'SingleEnded' or 'Differential'
+	H.InputType = 'SingleEnded';
+	
 	%------------------------------------------------------------------
 	% H.Fs is the sample rate in units of samples per second
 	%------------------------------------------------------------------
 	H.Fs = 500000;
+	
 	%------------------------------------------------------------------
 	% SweepDuration is the duration to display in the ongoing 
 	% data display window.
 	%------------------------------------------------------------------
-	H.SweepDuration = 500;
-% 	H.DefaultOutputPath = pwd;
+	if H.Nchannels == 2
+		H.SweepDuration = 300;
+		% spectrogram options
+		sopt.win = 64;
+		sopt.olap = 30;
+		sopt.nfft = 64;
+	else
+		H.SweepDuration = 500;
+		% spectrogram options
+		sopt.win = 64;
+		sopt.olap = 30;
+		sopt.nfft = 64;
+% 		sopt.win = 256;
+% 		sopt.olap = 230;
+% 		sopt.nfft = 256;
+	end
+	
+	H.dataylim = [-1 1];
+	H.speczlim = [-500 0];
+	
+	
+	% 	H.DefaultOutputPath = pwd;
 	H.DefaultOutputPath = 'D:\';
 	H.DefaultOutputFile = ['ccdata_' date '.daq'];
 	H.OutputFile = fullfile(H.DefaultOutputPath, H.DefaultOutputFile);
@@ -57,21 +82,24 @@ function varargout = chirocall(varargin)
 	%-------------------------------------------------------------
 	% pre-compute the V -> Pa conversion factor
 	H.VtoPa = (CalMic_sense^-1);
-
+	
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
 	% Create GUI
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
-	figpos = [400 550 360 140];
+	figpos = [401	915	360	140];
 	recordbuttonpos = [20	20	150	100];
 	monitorbuttonpos = [190	20	150	100];
+	plotpos = [ 769   560   758   495];
 
-	H.f = figure;
+	H.f = figure(10);
 	set(H.f, 'Position', figpos);
 	set(H.f, 'Name', 'ChiroCall');
 	set(H.f, 'ToolBar', 'none');
 	set(H.f, 'MenuBar', 'none');
+	
+	H.plotpos = plotpos;
 
 	% create monitor button
 	H.monitor = uicontrol('Style', 'togglebutton', ...
@@ -97,8 +125,7 @@ function monitor_callback(hObject, eventdata)
 	% Need to do different things depending on state of button
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
-	global H
-	
+	global H sopt
 	currentState = read_ui_val(H.monitor);
 
 	%------------------------------------------------------------------------
@@ -157,18 +184,20 @@ function monitor_callback(hObject, eventdata)
 		% set TriggerType to 'Manual' so that program starts acquisition
 		set(H.NI.ai, 'TriggerType', 'Manual');
 		% set input type to single ended
-		set(H.NI.ai, 'InputType', 'SingleEnded');
+		set(H.NI.ai, 'InputType', H.InputType);
 
 		%------------------------------------------------------------------------
 		% EVENT and CALLBACK PARAMETERS
 		%------------------------------------------------------------------------
 		% first, set the object to call the SamplesAcquiredFunction when
 		% BufferSize # of points are available
-		set(H.NI.ai, 'SamplesAcquiredFcnCount', ms2samples(H.SweepDuration, H.Fs));
+		set(H.NI.ai, 'SamplesAcquiredFcnCount', ...
+							ms2samples(H.SweepDuration, H.Fs));
 	
 		%-------------------------------------------------------
 		% set logging mode
-		%	'Disk'	sets logging mode to a file on disk (specified by 'LogFileName)
+		%	'Disk'	sets logging mode to a file on disk 
+		%				(specified by 'LogFileName)
 		%	'Memory'	sets logging mode to memory only
 		%	'Disk&Memory'	logs to file and memory
 		%-------------------------------------------------------
@@ -192,17 +221,20 @@ function monitor_callback(hObject, eventdata)
 		%-----------------------------------------------------------------------
 		%-----------------------------------------------------------------------
 		% create figure
-		figH = figure;
-		
-		% time vector for stimulus plots
-		zeroacq = syn_null(H.SweepDuration, H.Fs, 0);
-		H.SweepPoints = length(zeroacq);
-		H.tvec_acq = 1000*dt*(0:(H.SweepPoints-1));
+		figH = figure(11);
+		set(figH, 'Position', H.plotpos);
+		set(figH, 'Name', 'ChiroCall:Monitor');
+		set(figH, 'ToolBar', 'none');
+		set(figH, 'MenuBar', 'none');
 		
 		%-------------------------------------------------------
 		% create arrays for plotting and plot them
 		%-------------------------------------------------------
 		% acq
+		% time vector for stimulus plots
+		zeroacq = syn_null(H.SweepDuration, H.Fs, 0);
+		H.SweepPoints = length(zeroacq);
+		H.tvec_acq = 1000*dt*(0:(H.SweepPoints-1));		
 		H.AI0data = zeroacq;
 		if H.Nchannels == 2
 			H.AI1data = zeroacq;
@@ -211,26 +243,70 @@ function monitor_callback(hObject, eventdata)
 		%----------------------------------------------------------------
 		% plot null data, save handles in H struct for time-domain plots
 		%----------------------------------------------------------------
-		% response
-		H.ai0axes = subplot(1, H.Nchannels, 1);
+		% response data
+		H.ai0axes = subplot(2, H.Nchannels, 1);
 		H.ai0plot = plot(H.ai0axes, H.tvec_acq, H.AI0data, 'g');
 		set(H.ai0plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI0data');
 		title('Channel AI0');
+		set(H.ai0axes, 'YLim', H.dataylim);
+		set(H.ai0axes, 'YLimMode', 'manual');
+		
+		% spectrogram
+		if H.Nchannels == 1
+			H.ai0specaxes = subplot(2, H.Nchannels, 2);
+		else
+			H.ai0specaxes = subplot(2, H.Nchannels, 3);
+		end
+		[~, F, T, P] = spectrogram(H.AI0data, sopt.win, sopt.olap, sopt.nfft, H.Fs);
+		H.ai0F = 0.001 * F;
+		H.ai0T = 1000*T;
+		H.ai0P = 20*log10(P);
+		H.ai0spec = surf(H.ai0T, H.ai0F, H.ai0P, 'edgecolor', 'none'); 
+		axis tight; 
+		view(0, 90);
+		xlabel('Time (ms)'); ylabel('kHz');
+		set(H.ai0spec,	'XDataSource', 'H.ai0T', ...
+							'YDataSource', 'H.ai0F', ...
+							'ZDataSource', 'H.ai0P');
+		set(H.ai0specaxes, 'ZLimMode', 'manual');
+		set(H.ai0specaxes, 'ZLim', H.speczlim);
+		
+		% channel 2?
 		if H.Nchannels == 2
-			H.ai1axes = subplot(1, H.Nchannels, 2);
+			% ch2 response data
+			H.ai1axes = subplot(2, H.Nchannels, 2);
 			H.ai1plot = plot(H.ai1axes, H.tvec_acq, H.AI1data, 'r');
 			set(H.ai1plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI1data');
+			set(H.ai1axes, 'YLim', H.dataylim);
+			set(H.ai1axes, 'YLimMode', 'manual');
 			title('Channel AI1');
+			
+			% spectrogram
+			H.ai1specaxes = subplot(2, H.Nchannels, 4);
+			[~, F, T, P] = spectrogram(H.AI1data, ...
+													sopt.win, sopt.olap, sopt.nfft, H.Fs);
+			H.ai1F = 0.001 * F;
+			H.ai1T = 1000*T;
+			H.ai1P = 20*log10(P);
+			H.ai1spec = surf(H.ai1T, H.ai1F, H.ai1P, 'edgecolor', 'none'); 
+			axis tight; 
+			view(0, 90);
+			xlabel('Time (ms)'); ylabel('kHz');
+			set(H.ai1spec,	'XDataSource', 'H.ai1T', ...
+								'YDataSource', 'H.ai1F', ...
+								'ZDataSource', 'H.ai1P');
+			set(H.ai1specaxes, 'ZLimMode', 'manual');
+			set(H.ai1specaxes, 'ZLim', H.speczlim);
 		end
 
 		%-------------------------------------------------------
-		% plot null data, save handles for frequency-domain plots
-		%-------------------------------------------------------
-
 		% provide callback function
+		%-------------------------------------------------------
 		set(H.NI.ai, 'SamplesAcquiredFcn', {@plot_data});
 
-		%START ACQUIRING
+		%-------------------------------------------------------
+		% START ACQUIRING
+		%-------------------------------------------------------
 		start(H.NI.ai);
 		trigger(H.NI.ai);
 
@@ -246,14 +322,11 @@ function monitor_callback(hObject, eventdata)
 		%------------------------------------------------------------------------
 		%------------------------------------------------------------------------
 		[status, log] = ai_stop(H.NI);
-		
 		if status
 			disp status
 			disp log
 		end
-		
 		clear H.NI;
-		
 		% update UI
 		update_ui_str(H.monitor, 'monitor');
 		set(H.monitor, 'FontAngle', 'normal', 'FontWeight', 'normal');
@@ -269,7 +342,7 @@ function record_callback(hObject, eventdata)
 	% Need to do different things depending on state of button
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
-	global H
+	global H sopt
 	currentState = read_ui_val(H.record);
 
 	%------------------------------------------------------------------------
@@ -341,7 +414,7 @@ function record_callback(hObject, eventdata)
 		% set TriggerType to 'Manual' so that program starts acquisition
 		set(H.NI.ai, 'TriggerType', 'Manual');
 		% set input type to single ended
-		set(H.NI.ai, 'InputType', 'SingleEnded');
+		set(H.NI.ai, 'InputType', H.InputType);
 
 		%------------------------------------------------------------------------
 		% EVENT and CALLBACK PARAMETERS
@@ -391,7 +464,11 @@ function record_callback(hObject, eventdata)
 		%-----------------------------------------------------------------------
 		%-----------------------------------------------------------------------
 		% create figure
-		figH = figure;
+		figH = figure(11);
+		set(figH, 'Position', H.plotpos);
+		set(figH, 'Name', 'ChiroCall:Record');
+		set(figH, 'ToolBar', 'none');
+		set(figH, 'MenuBar', 'none');
 		
 		% time vector for stimulus plots
 		zeroacq = syn_null(H.SweepDuration, H.Fs, 0);
@@ -410,29 +487,72 @@ function record_callback(hObject, eventdata)
 		%----------------------------------------------------------------
 		% plot null data, save handles in H struct for time-domain plots
 		%----------------------------------------------------------------
-		% response
-		H.ai0axes = subplot(1, H.Nchannels, 1);
+		% response data
+		H.ai0axes = subplot(2, H.Nchannels, 1);
 		H.ai0plot = plot(H.ai0axes, H.tvec_acq, H.AI0data, 'g');
 		set(H.ai0plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI0data');
+		set(H.ai0axes, 'YLim', H.dataylim);
+		set(H.ai0axes, 'YLimMode', 'manual');		
 		title('Channel AI0');
+		
+		% spectrogram
+		if H.Nchannels == 1
+			H.ai0specaxes = subplot(2, H.Nchannels, 2);
+		else
+			H.ai0specaxes = subplot(2, H.Nchannels, 3);
+		end
+		[~, F, T, P] = spectrogram(H.AI0data, sopt.win, sopt.olap, sopt.nfft, H.Fs);
+		H.ai0F = 0.001 * F;
+		H.ai0T = 1000*T;
+		H.ai0P = 20*log10(P);
+		H.ai0spec = surf(H.ai0T, H.ai0F, H.ai0P, 'edgecolor', 'none'); 
+		axis tight; 
+		view(0, 90);
+		xlabel('Time (ms)'); ylabel('kHz');
+		set(H.ai0spec,	'XDataSource', 'H.ai0T', ...
+							'YDataSource', 'H.ai0F', ...
+							'ZDataSource', 'H.ai0P');
+		set(H.ai0specaxes, 'ZLimMode', 'manual');
+		set(H.ai0specaxes, 'ZLim', H.speczlim);
+		% channel 2?
 		if H.Nchannels == 2
-			H.ai1axes = subplot(1, H.Nchannels, 2);
+			% ch2 response data
+			H.ai1axes = subplot(2, H.Nchannels, 2);
 			H.ai1plot = plot(H.ai1axes, H.tvec_acq, H.AI1data, 'r');
 			set(H.ai1plot, 'XDataSource', 'H.tvec_acq', 'YDataSource', 'H.AI1data');
+			set(H.ai1axes, 'YLim', H.dataylim);
+			set(H.ai1axes, 'YLimMode', 'manual');			
 			title('Channel AI1');
+			
+			% spectrogram
+			H.ai1specaxes = subplot(2, H.Nchannels, 4);
+			[~, F, T, P] = spectrogram(H.AI1data, ...
+													sopt.win, sopt.olap, sopt.nfft, H.Fs);
+			H.ai1F = 0.001 * F;
+			H.ai1T = 1000*T;
+			H.ai1P = 20*log10(P);
+			H.ai1spec = surf(H.ai1T, H.ai1F, H.ai1P, 'edgecolor', 'none'); 
+			axis tight; 
+			view(0, 90);
+			xlabel('Time (ms)'); ylabel('kHz');
+			set(H.ai1spec,	'XDataSource', 'H.ai1T', ...
+								'YDataSource', 'H.ai1F', ...
+								'ZDataSource', 'H.ai1P');	
+			set(H.ai1specaxes, 'ZLimMode', 'manual');
+			set(H.ai1specaxes, 'ZLim', H.speczlim);
 		end
 		
 		%-------------------------------------------------------
-		% plot null data, save handles for frequency-domain plots
+		% set callback function for plotting
 		%-------------------------------------------------------
-
 		% provide callback function
 		set(H.NI.ai, 'SamplesAcquiredFcn', {@plot_data});
 
+		%-------------------------------------------------------
 		%START ACQUIRING
+		%-------------------------------------------------------
 		start(H.NI.ai);
 		trigger(H.NI.ai);
-		
 		
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
@@ -440,22 +560,15 @@ function record_callback(hObject, eventdata)
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
 	else
-		% stop acquiring
-		disp('...closing NI devices...');
-		try
-			stop(H.NI.ai);
-		catch errEvent
-			fprintf('problem stopping!\n\n\n')
-			disp(errEvent)
-			return
+		%------------------------------------------------------------------------
+		% clean up
+		%------------------------------------------------------------------------
+		[status, log] = ai_stop(H.NI);
+		if status
+			disp status
+			disp log
 		end
-		% get event log
-		% EventLog = showdaqevents(handles.iodev.NI.ai);
-
-		% delete and clear ai and ch0 object
-		delete(H.NI.ai);
-		clear H.NI.ai
-
+		clear H.NI;
 		% update UI
 		update_ui_str(H.record, 'record');
 		set(H.record, 'FontAngle', 'normal', 'FontWeight', 'normal');
@@ -464,16 +577,27 @@ function record_callback(hObject, eventdata)
 end
 
 function plot_data(obj, event)
-	global H
+	global H sopt
 	
 	% read data from ai object
 	tmpdata = getdata(obj, H.SweepPoints);
 	H.AI0data = tmpdata(:, 1);
 	% update data plot
 	refreshdata(H.ai0plot, 'caller');
+	
+	[~, F, T, P] = spectrogram(H.AI0data, sopt.win, sopt.olap, sopt.nfft, H.Fs);
+% 	H.ai0F = 0.001 * F;
+% 	H.ai0T = 1000*T;
+	H.ai0P = 20*log10(P);
+	refreshdata(H.ai0spec, 'caller');
+	
 	% do same for channel 2 if necessary
 	if H.Nchannels == 2
 		H.AI1data = tmpdata(:, 2);
 		refreshdata(H.ai1plot, 'caller');
+		[~, F, T, P] = spectrogram(H.AI1data, ...
+												sopt.win, sopt.olap, sopt.nfft, H.Fs);
+		H.ai1P = 20*log10(P);
+		refreshdata(H.ai1spec, 'caller');
 	end
 end
