@@ -222,46 +222,44 @@ if chunk_mode == 0
 	%-------------------------------------------------------------
 	fprintf('%s\n', sepstr)
 	fprintf('Reading and Converting data to .wav format...\n')
-	for n = 1:nchunks
-		fprintf('\tReading Chunk %d (%f - %f sec) ...', ...
-												n, time_chunks(n, 1), time_chunks(n, 2));
-		[data, time] = daqread(infile, 'Time', time_chunks(n, :));
-		fprintf(' ...done\n');
-		outname = sprintf('%s.wav', outbase);
-		outfile = fullfile(outpath, outname);
-		fprintf('\tWriting Chunk to file %s ...', outfile);
-		%------------------------------------------------------------
-		% first normalize data to +/- 0.95 V max to avoid clipping
-		%------------------------------------------------------------
-		% ensure data are organized with channels in rows
-		[nrows, ncols] = size(data);
-		if ncols > nrows
-			% if # of columns > # of rows, transpose the data so that
-			% samples are in rows, channels are in columns
-			data = data';
-		end
-		clear ncols nrows
-
-		% normalize data by channel
-		[nsamples, nchannels] = size(data);
-		for c = 1:nchannels
-			data(:, c) = 0.95 * normalize(data(:, c));
-		end
-
-		%------------------------------------------------------------
-		% then write to wave file (use try... catch to trap errors)
-		%------------------------------------------------------------
-		try
-			wavwrite(data, Fs, outfile);
-		catch errEvent
-			fprintf('\nProblem while writing to file %s\n', outfile)
-			disp(errEvent)
-			return
-		end
-
-		% done!
-		fprintf('... done\n');
+	fprintf('\tReading 1 Chunk (%f - %f sec) ...', ...
+										time_chunks(n, 1), time_chunks(n, 2));
+	[data, time] = daqread(infile, 'Time', time_chunks(n, :));
+	fprintf(' ...done\n');
+	outname = sprintf('%s.wav', outbase);
+	outfile = fullfile(outpath, outname);
+	fprintf('\tWriting Chunk to file %s ...', outfile);
+	%------------------------------------------------------------
+	% first normalize data to +/- 0.95 V max to avoid clipping
+	%------------------------------------------------------------
+	% ensure data are organized with channels in rows
+	[nrows, ncols] = size(data);
+	if ncols > nrows
+		% if # of columns > # of rows, transpose the data so that
+		% samples are in rows, channels are in columns
+		data = data';
 	end
+	clear ncols nrows
+
+	% normalize data by channel
+	[nsamples, nchannels] = size(data);
+	for c = 1:nchannels
+		data(:, c) = 0.95 * normalize(data(:, c));
+	end
+
+	%------------------------------------------------------------
+	% then write to wave file (use try... catch to trap errors)
+	%------------------------------------------------------------
+	try
+		wavwrite(data, Fs, outfile);
+	catch errEvent
+		fprintf('\nProblem while writing to file %s\n', outfile)
+		disp(errEvent)
+		return
+	end
+
+	% done!
+	fprintf('... done\n');
 
 	%------------------------------------------------------------
 	% store info in .mat file
