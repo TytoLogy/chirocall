@@ -39,7 +39,8 @@ function varargout = chirocall(varargin)
 	% data display window.
 	%------------------------------------------------------------------
 	H.SweepDuration = 500;
-	H.DefaultOutputPath = pwd;
+% 	H.DefaultOutputPath = pwd;
+	H.DefaultOutputPath = 'D:\';
 	H.DefaultOutputFile = ['ccdata_' date '.daq'];
 	H.OutputFile = fullfile(H.DefaultOutputPath, H.DefaultOutputFile);
 	
