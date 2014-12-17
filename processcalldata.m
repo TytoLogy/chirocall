@@ -14,14 +14,20 @@ function varargout = processcalldata(varargin)
 % Created: 20 November 2014 (SJs)
 %
 % Revisions:
+%	17 Dec 2014 (SJS): 
+%	 -	moved some of the defaults to processcalldata_settings
+%	 -	implemented bandpass filtering of data
 %------------------------------------------------------------------------
 
 %-------------------------------------------------------------
-% some defaults
+% some local defaults
 %-------------------------------------------------------------
 sepstr = '--------------------------------------------------------------------';
-default_chunk_min = 0.5;
-deci_factor = 10;
+
+%-------------------------------------------------------------
+% load settings
+%-------------------------------------------------------------
+processcalldata_settings;
 
 %-------------------------------------------------------------
 % check inputs, get input filename
@@ -98,6 +104,13 @@ if default_chunk == 0
 end
 
 %-------------------------------------------------------------
+% get filter
+%-------------------------------------------------------------
+if strcmpi(FILTER_DATA, 'yes')
+	filter_coeffs = get_filter(Fs);
+end
+
+%-------------------------------------------------------------
 % report to user
 %-------------------------------------------------------------
 fprintf('\n\n');
@@ -144,11 +157,41 @@ else
 	time_chunks(nchunks, :) = [(n * chunk_time), net_time - dt];	
 end
 
+[tmp, ~] = daqread(infile, 'Time', time_chunks(1, :));
+%------------------------------------------------------------
+% ensure data are organized with channels in rows
+%------------------------------------------------------------
+[nrows, ncols] = size(tmp);
+% force tmp into column vector
+if ncols > nrows
+	% if # of columns > # of rows, transpose the data so that
+	% samples are in rows, channels are in columns
+	tmp = tmp';
+end
+clear ncols nrows
+% size of data
+[nsamples, nchannels] = size(tmp);
+
 for n = 1:nchunks
 	[tmp, ~] = daqread(infile, 'Time', time_chunks(n, :));
+	[nrows, ncols] = size(tmp);
+	if ncols > nrows
+		% if # of columns > # of rows, transpose the data so that
+		% samples are in rows, channels are in columns
+		tmp = tmp';
+	end
+	% loop through channels
+	for c = 1:nchannels
+		% filter the data if specified
+		if strcmpi(FILTER_DATA, 'yes')
+			% sin2array only operates properly on row vectors
+			tmp(:, c) = sin2array(tmp(:, c)', 0.5, Fs)';
+			tmp(:, c) = filtfilt(filter_coeffs.b, filter_coeffs.a, tmp(:, c));
+		end
+	end
+	% decimate the data
 	dchunks{n} = decimate(tmp, deci_factor);
 end
-
 
 figH = figure;
 % convert data to vector from cell
@@ -230,9 +273,8 @@ if chunk_mode == 0
 	outfile = fullfile(outpath, outname);
 	fprintf('\tWriting Chunk to file %s ...', outfile);
 	%------------------------------------------------------------
-	% first normalize data to +/- 0.95 V max to avoid clipping
-	%------------------------------------------------------------
 	% ensure data are organized with channels in rows
+	%------------------------------------------------------------
 	[nrows, ncols] = size(data);
 	if ncols > nrows
 		% if # of columns > # of rows, transpose the data so that
@@ -240,9 +282,23 @@ if chunk_mode == 0
 		data = data';
 	end
 	clear ncols nrows
-
-	% normalize data by channel
+	% size of data
 	[nsamples, nchannels] = size(data);
+	%------------------------------------------------------------
+	% filter data if asked to do so
+	%------------------------------------------------------------
+	if strcmpi(FILTER_DATA, 'yes')
+		for c = 1:nchannels
+			% need to ramp data on/off to avoid transient nastiness
+			data(:, c) = sin2array(data(:, c)', 0.5, Fs)';
+			% then apply filter
+			data(:, c) = filtfilt(filter_coeffs.b, filter_coeffs.a, data(:, c));
+		end
+	end
+	%------------------------------------------------------------
+	% normalize data to +/- 0.95 V max to avoid clipping
+	%------------------------------------------------------------
+	% normalize data by channel
 	for c = 1:nchannels
 		data(:, c) = 0.95 * normalize(data(:, c));
 	end
@@ -351,10 +407,10 @@ else
 		outname = sprintf('%s_%d.wav', outbase, n);
 		outfile = fullfile(outpath, outname);
 		fprintf('\tWriting Chunk to file %s ...', outfile);
-		%------------------------------------------------------------
-		% first normalize data to +/- 0.95 V max to avoid clipping
+		
 		%------------------------------------------------------------
 		% ensure data are organized with channels in rows
+		%------------------------------------------------------------
 		[nrows, ncols] = size(data);
 		if ncols > nrows
 			% if # of columns > # of rows, transpose the data so that
@@ -362,9 +418,23 @@ else
 			data = data';
 		end
 		clear ncols nrows
-
-		% normalize data by channel
+		% size of data
 		[nsamples, nchannels] = size(data);
+		%------------------------------------------------------------
+		% filter data if asked to do so
+		%------------------------------------------------------------
+		if strcmpi(FILTER_DATA, 'yes')
+			for c = 1:nchannels
+				% need to ramp data on/off to avoid transient nastiness
+				data(:, c) = sin2array(data(:, c)', 0.5, Fs)';
+				% then apply filter
+				data(:, c) = filtfilt(filter_coeffs.b, filter_coeffs.a, data(:, c));
+			end
+		end
+		%------------------------------------------------------------
+		% normalize data to +/- 0.95 V max to avoid clipping
+		%------------------------------------------------------------
+		% normalize data by channel
 		for c = 1:nchannels
 			data(:, c) = 0.95 * normalize(data(:, c));
 		end
@@ -400,6 +470,5 @@ else
 		varargout{2} = info;
 	end
 end
-
 
 
