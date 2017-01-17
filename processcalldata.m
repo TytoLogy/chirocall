@@ -266,8 +266,8 @@ if chunk_mode == 0
 	fprintf('%s\n', sepstr)
 	fprintf('Reading and Converting data to .wav format...\n')
 	fprintf('\tReading 1 Chunk (%f - %f sec) ...', ...
-										time_chunks(n, 1), time_chunks(n, 2));
-	[data, time] = daqread(infile, 'Time', time_chunks(n, :));
+										time_chunks(1, 1), time_chunks(1, 2));
+	[data, time] = daqread(infile, 'Time', time_chunks(1, :));
 	fprintf(' ...done\n');
 	outname = sprintf('%s.wav', outbase);
 	outfile = fullfile(outpath, outname);

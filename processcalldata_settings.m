@@ -46,4 +46,4 @@ filter_order = 3;
 filter_type = 'butterworth';
 
 % filter mode ('highpass', 'lowpass', 'bandstop', 'bandpass')
-filter_mode = 'bandstop';
+filter_mode = 'bandpass';
