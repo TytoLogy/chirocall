@@ -1,4 +1,4 @@
-function varargout = chirocall(varargin)
+function varargout = chirocall_RosenLab(varargin)
 %------------------------------------------------------------------------
 % chirocall.m
 %------------------------------------------------------------------------
@@ -91,7 +91,7 @@ function varargout = chirocall(varargin)
 	end
 end
 
-function monitor_callback(hObject, eventdata)
+function monitor_callback(hObject, eventdata) %#ok<*INUSD>
 	%------------------------------------------------------------------------
 	%------------------------------------------------------------------------
 	% Need to do different things depending on state of button
