@@ -31,13 +31,13 @@ deci_factor = 10;
 %------------------------------------------------------------------------
 
 % turns filtering on ('yes') or off ('no')
-FILTER_DATA = 'yes';
+FILTER_DATA = 'no';
 
 % high-pass cutoff frequency (Hz)
 fc_high = 1000;
 
 % low-pass cutoff frequency (Hz)
-fc_low = 150000;
+fc_low = 60000;
 
 % filter order (used to change "strength" of the filter)
 filter_order = 3;
@@ -47,3 +47,4 @@ filter_type = 'butterworth';
 
 % filter mode ('highpass', 'lowpass', 'bandstop', 'bandpass')
 filter_mode = 'bandpass';
+% filter_mode = 'bandstop';

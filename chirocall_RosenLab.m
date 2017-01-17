@@ -33,7 +33,7 @@ function varargout = chirocall(varargin)
 	%------------------------------------------------------------------
 	% H.Fs is the sample rate in units of samples per second
 	%------------------------------------------------------------------
-	H.Fs = 250000;
+	H.Fs = 100000;
 	%------------------------------------------------------------------
 	% SweepDuration is the duration to display in the ongoing 
 	% data display window.
