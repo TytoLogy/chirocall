@@ -36,7 +36,7 @@ processcalldata_settings;
 Fn = Fs / 2;
 
 switch filter_type
-	case 'butterworth',
+	case 'butterworth'
 		
 		switch filter_mode
 			case 'highpass',
