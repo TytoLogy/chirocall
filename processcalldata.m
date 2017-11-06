@@ -30,6 +30,17 @@ sepstr = '--------------------------------------------------------------------';
 processcalldata_settings;
 
 %-------------------------------------------------------------
+% need to check matlab version in order to determine wav
+% file output options
+%-------------------------------------------------------------
+if strcmpi(version('-release'), '2016b')
+	AUDIO_WRITE_FLAG = 1;
+else
+	AUDIO_WRITE_FLAG = 0;
+end
+
+
+%-------------------------------------------------------------
 % check inputs, get input filename
 %-------------------------------------------------------------
 % initialize fname and fpath (for input daq file)
@@ -45,7 +56,7 @@ if nargin == 1
 		error('%s: file not found (%s)', mfilename, varargin{1});
 	else
 		% good user
-		[fpath, fname, fext] = fileparts(varargin{1})
+		[fpath, fname, fext] = fileparts(varargin{1});
 		if ~strcmpi(fext, '.daq')
 			error('%s: input file must be of type ''.daq''', mfilename);
 		end
@@ -199,7 +210,7 @@ plot_data = cell2mat(dchunks);
 plot_tvec = plot_dt * (0:(length(plot_data)-1));
 % plot data
 plot(plot_tvec, plot_data);
-title(sprintf('%s', fname));
+title(sprintf('%s', fname), 'Interpreter', 'none');
 xlabel('Time (s)')
 ylabel('Volts');
 grid on
@@ -248,10 +259,10 @@ if chunk_mode == 0
 	time_chunks(1, 1) = query_uservar('Start time (seconds)', ...
 								[0 net_time 0]);
 	fprintf('\n');
-	time_chunks(1, 2) = query_uservar('Start time (seconds)', ...
+	time_chunks(1, 2) = query_uservar('End time (seconds)', ...
 								[	(time_chunks(1, 1) + dt) ...
 									net_time ...
-									(time_chunks(1, 1) + dt)]);
+									net_time]);
 
 	% report chunks to user
 	fprintf('\n');
@@ -307,7 +318,11 @@ if chunk_mode == 0
 	% then write to wave file (use try... catch to trap errors)
 	%------------------------------------------------------------
 	try
-		wavwrite(data, Fs, outfile);
+		if AUDIO_WRITE_FLAG
+			audiowrite(outfile, data, Fs);
+		else
+			wavwrite(data, Fs, outfile); %#ok<DWVWR>
+		end
 	catch errEvent
 		fprintf('\nProblem while writing to file %s\n', outfile)
 		disp(errEvent)
@@ -443,7 +458,11 @@ else
 		% then write to wave file (use try... catch to trap errors)
 		%------------------------------------------------------------
 		try
-			wavwrite(data, Fs, outfile);
+			if AUDIO_WRITE_FLAG
+				audiowrite(outfile, data, Fs);
+			else
+				wavwrite(data, Fs, outfile); %#ok<DWVWR>
+			end
 		catch errEvent
 			fprintf('\nProblem while writing to file %s\n', outfile)
 			disp(errEvent)
